@@ -1,8 +1,4 @@
 // Webhook รับ event จาก LINE Messaging API
-// ใช้ทำ 2 อย่าง: 1) จับ Group ID เก็บไว้อัตโนมัติ  2) ให้สมาชิกลงทะเบียนผูก LINE กับ username
-// ต้องตั้งค่า Environment variables ใน Netlify: FIREBASE_DB_URL, LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET
-// แล้วเอา URL ของฟังก์ชันนี้ไปกรอกที่ "Webhook URL" ใน LINE Developers Console > Messaging API
-
 const crypto = require('crypto');
 
 const FIREBASE_DB_URL = (process.env.FIREBASE_DB_URL || '').replace(/\/$/, '');
@@ -10,13 +6,17 @@ const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LINE_SECRET = process.env.LINE_CHANNEL_SECRET;
 
 function verifySignature(rawBody, signature) {
-  if (!LINE_SECRET) return true; // ยังไม่ตั้ง secret ไว้ก็ข้ามไปก่อน (ไม่แนะนำใช้ production จริง)
+  if (!LINE_SECRET) return true;
   const hash = crypto.createHmac('sha256', LINE_SECRET).update(rawBody).digest('base64');
   return hash === signature;
 }
 
 async function replyLine(replyToken, text) {
-  await fetch('https://api.line.me/v2/bot/message/reply', {
+  if (!LINE_TOKEN) {
+    console.error('LINE_CHANNEL_ACCESS_TOKEN is missing');
+    return;
+  }
+  const res = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -24,11 +24,24 @@ async function replyLine(replyToken, text) {
     },
     body: JSON.stringify({ replyToken, messages: [{ type: 'text', text }] }),
   });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('LINE reply failed', res.status, errText);
+  } else {
+    console.log('LINE reply sent OK');
+  }
 }
 
 exports.handler = async function (event) {
+  console.log('webhook invoked, env check:', {
+    hasFirebase: !!FIREBASE_DB_URL,
+    hasToken: !!LINE_TOKEN,
+    hasSecret: !!LINE_SECRET,
+  });
+
   const signature = event.headers['x-line-signature'] || event.headers['X-Line-Signature'];
   if (!verifySignature(event.body, signature)) {
+    console.error('Invalid signature');
     return { statusCode: 401, body: 'Invalid signature' };
   }
 
@@ -39,25 +52,27 @@ exports.handler = async function (event) {
     body = {};
   }
   const events = body.events || [];
+  console.log('events received:', events.length);
 
   for (const e of events) {
     try {
-      // 1) จับ Group ID เก็บไว้ใน Firebase ทุกครั้งที่มีความเคลื่อนไหวในกลุ่ม
       if (e.source && e.source.type === 'group' && e.source.groupId) {
         await fetch(`${FIREBASE_DB_URL}/config/lineGroupId.json`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(e.source.groupId),
         });
+        console.log('saved group id', e.source.groupId);
       }
 
-      // 2) ลงทะเบียนส่วนตัว: พิมพ์ "ลงทะเบียน <username>" ทักบอท
       if (e.type === 'message' && e.message && e.message.type === 'text' && e.source && e.source.type === 'user') {
+        console.log('received text message:', e.message.text);
         const match = e.message.text.trim().match(/^ลงทะเบียน\s+(\S+)$/);
         if (match) {
           const username = match[1];
           const userRes = await fetch(`${FIREBASE_DB_URL}/users/${username}.json`);
           const userData = await userRes.json();
+          console.log('lookup username', username, 'found:', !!userData);
           if (userData) {
             await fetch(`${FIREBASE_DB_URL}/users/${username}.json`, {
               method: 'PATCH',
