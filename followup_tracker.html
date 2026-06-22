@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer Follow-up Tracker</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2ff; color: #2d3748; font-size: 14px; min-height: 100vh; }
+
+/* LOGIN */
+#loginPage { min-height:100vh; background:linear-gradient(135deg,#6C3CE1,#9B59F5,#C05CEA); display:flex; align-items:center; justify-content:center; }
+.login-box { background:#fff; border-radius:22px; padding:40px 38px; width:380px; max-width:92vw; box-shadow:0 24px 64px rgba(0,0,0,.22); animation:popIn .3s cubic-bezier(.34,1.56,.64,1); }
+.login-logo { text-align:center; margin-bottom:24px; }
+.login-logo .icon { font-size:48px; }
+.login-logo h1 { font-size:20px; font-weight:800; color:#1e1b4b; margin-top:8px; }
+.login-logo p { font-size:12px; color:#9B9BAE; margin-top:4px; }
+.login-box label { display:block; font-size:12px; font-weight:700; color:#64748b; margin-bottom:5px; margin-top:16px; }
+.login-box input { width:100%; padding:11px 14px; border:2px solid #e2e8f0; border-radius:10px; font-size:14px; outline:none; transition:border-color .2s; }
+.login-box input:focus { border-color:#9B59F5; box-shadow:0 0 0 3px rgba(155,89,245,.12); }
+.login-btn { width:100%; margin-top:22px; padding:13px; background:linear-gradient(135deg,#6C3CE1,#C05CEA); color:#fff; border:none; border-radius:11px; font-size:15px; font-weight:700; cursor:pointer; transition:all .2s; }
+.login-btn:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(108,60,225,.4); }
+.login-btn:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+.login-error { color:#DC2626; font-size:12px; text-align:center; margin-top:10px; min-height:18px; }
+.login-hint { margin-top:20px; background:#f5f3ff; border-radius:10px; padding:12px 14px; }
+.login-hint p { font-size:11px; color:#7C3AED; font-weight:700; margin-bottom:6px; }
+.login-hint table { width:100%; font-size:11px; color:#6B7280; border-collapse:collapse; }
+.login-hint td { padding:2px 4px; }
+.login-hint td:first-child { font-weight:600; color:#4B5563; width:110px; }
+
+/* APP */
+#appPage { display:none; }
+
+/* TOPBAR */
+.topbar { background:linear-gradient(135deg,#6C3CE1,#9B59F5,#C05CEA); color:#fff; padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 4px 20px rgba(108,60,225,.4); position:sticky; top:0; z-index:100; }
+.topbar h1 { font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px; }
+.topbar-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.user-chip { background:rgba(255,255,255,.18); border:1.5px solid rgba(255,255,255,.4); border-radius:20px; padding:5px 12px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; }
+.sync-dot { width:8px; height:8px; border-radius:50%; background:#11C98E; display:inline-block; animation:pulse 2s infinite; }
+.sync-dot.off { background:#FF5B5B; animation:none; }
+.btn { padding:7px 14px; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:all .15s; display:inline-flex; align-items:center; gap:5px; }
+.btn-add { background:#fff; color:#6C3CE1; box-shadow:0 2px 8px rgba(0,0,0,.15); }
+.btn-add:hover { background:#f3eeff; transform:translateY(-1px); }
+.btn-outline { background:rgba(255,255,255,.15); color:#fff; border:1.5px solid rgba(255,255,255,.45); }
+.btn-outline:hover { background:rgba(255,255,255,.25); }
+.btn-save { background:linear-gradient(135deg,#11C98E,#0EA06F); color:#fff; box-shadow:0 3px 10px rgba(17,201,142,.35); }
+.btn-save:hover { transform:translateY(-1px); }
+.btn-save:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+.btn-cancel { background:#f1f3f7; color:#555; }
+.btn-cancel:hover { background:#e4e7ef; }
+.btn-del { background:linear-gradient(135deg,#FF5B5B,#E03030); color:#fff; }
+.btn-del:hover { transform:translateY(-1px); }
+
+/* CARDS */
+.summary-bar { display:flex; gap:12px; padding:18px 24px 6px; flex-wrap:wrap; }
+.card { flex:1; min-width:130px; border-radius:14px; padding:16px 18px; cursor:pointer; transition:transform .15s,box-shadow .15s; position:relative; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.1); }
+.card::before { content:''; position:absolute; right:-14px; top:-14px; width:70px; height:70px; border-radius:50%; background:rgba(255,255,255,.15); }
+.card:hover { transform:translateY(-3px); box-shadow:0 8px 22px rgba(0,0,0,.16); }
+.card.active { outline:3px solid rgba(255,255,255,.9); outline-offset:-3px; }
+.card-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; opacity:.85; }
+.card-value { font-size:30px; font-weight:800; margin:4px 0 2px; }
+.card-sub { font-size:11px; opacity:.8; }
+.card-all    { background:linear-gradient(135deg,#6C3CE1,#9B59F5); color:#fff; }
+.card-wip    { background:linear-gradient(135deg,#F7971E,#FFD200); color:#fff; }
+.card-wait   { background:linear-gradient(135deg,#4FACFE,#00C6FF); color:#fff; }
+.card-closed { background:linear-gradient(135deg,#11C98E,#0FC8A0); color:#fff; }
+.card-cancel { background:linear-gradient(135deg,#9E9EA4,#6C757D); color:#fff; }
+.card-overdue{ background:linear-gradient(135deg,#FF416C,#FF4B2B); color:#fff; }
+
+/* TOOLBAR */
+.toolbar { display:flex; gap:10px; padding:14px 24px; flex-wrap:wrap; align-items:center; }
+.search-wrap { position:relative; }
+.search-wrap input { padding:9px 12px 9px 36px; border:2px solid #e2e8f0; border-radius:10px; font-size:13px; width:240px; outline:none; background:#fff; transition:border-color .2s; }
+.search-wrap input:focus { border-color:#9B59F5; box-shadow:0 0 0 3px rgba(155,89,245,.1); }
+.search-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#aaa; font-size:15px; }
+.toolbar select { padding:9px 12px; border:2px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; outline:none; cursor:pointer; }
+.toolbar select:focus { border-color:#9B59F5; }
+
+/* TABLE */
+.table-wrap { padding:4px 24px 30px; overflow-x:auto; }
+.table-hint { display:none; }
+table { width:100%; border-collapse:separate; border-spacing:0; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.08); }
+thead th { background:linear-gradient(135deg,#6C3CE1,#8E44F0); color:#fff; padding:12px 10px; text-align:left; font-size:12px; font-weight:700; white-space:nowrap; }
+thead th.center { text-align:center; }
+thead th:first-child { padding-left:16px; }
+tbody tr { border-bottom:1px solid #f0f2f8; transition:background .12s; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:#f8f5ff !important; }
+tbody td { padding:10px 10px; vertical-align:middle; }
+tbody td:first-child { padding-left:16px; position:relative; }
+tbody td.center { text-align:center; }
+tr.row-wip    td:first-child::before { content:''; position:absolute; left:0; top:20%; height:60%; width:3px; border-radius:3px; background:#F7971E; }
+tr.row-wait   td:first-child::before { content:''; position:absolute; left:0; top:20%; height:60%; width:3px; border-radius:3px; background:#4FACFE; }
+tr.row-closed td:first-child::before { content:''; position:absolute; left:0; top:20%; height:60%; width:3px; border-radius:3px; background:#11C98E; }
+tr.row-cancel td:first-child::before { content:''; position:absolute; left:0; top:20%; height:60%; width:3px; border-radius:3px; background:#9E9EA4; }
+tr.row-overdue td:first-child::before { content:''; position:absolute; left:0; top:20%; height:60%; width:3px; border-radius:3px; background:#FF416C; }
+tr.row-closed td { background:#f0fdf8; }
+tr.row-cancel td { background:#fafafa; }
+tr.row-overdue td { background:#fff8f0; }
+
+.badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
+.badge-wip    { background:#FFF3CD; color:#92650A; border:1.5px solid #FFD166; }
+.badge-wait   { background:#E0F4FF; color:#0369A1; border:1.5px solid #7DD3FC; }
+.badge-closed { background:#D1FAE5; color:#065F46; border:1.5px solid #6EE7B7; }
+.badge-cancel { background:#F3F4F6; color:#6B7280; border:1.5px solid #D1D5DB; }
+
+.steps { display:flex; gap:3px; justify-content:center; }
+.step { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; }
+.step.done { background:linear-gradient(135deg,#11C98E,#0FC8A0); color:#fff; box-shadow:0 2px 6px rgba(17,201,142,.4); font-size:12px; }
+.step.todo { background:#EEF0F6; color:#bbb; border:1.5px dashed #d0d5e8; }
+.overdue-tag { display:inline-flex; align-items:center; gap:3px; background:#FFE8E8; color:#C0392B; padding:2px 7px; border-radius:8px; font-size:11px; font-weight:700; border:1px solid #FFBDBD; }
+.act-btn { width:28px; height:28px; border-radius:7px; border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:14px; transition:transform .1s; }
+.act-edit { background:#EEF2FF; }
+.act-edit:hover { background:#DDD6FE; transform:scale(1.1); }
+.act-del  { background:#FEF2F2; }
+.act-del:hover { background:#FEE2E2; transform:scale(1.1); }
+
+/* MODAL */
+.overlay { display:none; position:fixed; inset:0; background:rgba(30,20,60,.5); backdrop-filter:blur(4px); z-index:1000; align-items:center; justify-content:center; }
+.overlay.open { display:flex; }
+.modal { background:#fff; border-radius:18px; width:700px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25); animation:popIn .2s cubic-bezier(.34,1.56,.64,1); }
+.modal-header { background:linear-gradient(135deg,#6C3CE1,#C05CEA); color:#fff; padding:18px 22px; display:flex; justify-content:space-between; align-items:center; border-radius:18px 18px 0 0; }
+.modal-header h2 { font-size:17px; font-weight:700; }
+.modal-close { background:rgba(255,255,255,.2); border:none; color:#fff; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center; }
+.modal-close:hover { background:rgba(255,255,255,.35); }
+.modal-body { padding:22px; }
+.modal-footer { padding:14px 22px; border-top:1px solid #f0f2f8; display:flex; justify-content:flex-end; gap:8px; }
+.section-title { font-size:11px; font-weight:800; color:#6C3CE1; text-transform:uppercase; letter-spacing:.8px; margin:4px 0 14px; padding-bottom:8px; border-bottom:2px solid #ede9fe; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.form-full { grid-column:1/-1; }
+.form-group label { display:block; font-size:12px; color:#64748b; margin-bottom:5px; font-weight:600; }
+.form-group input,.form-group select,.form-group textarea { width:100%; padding:9px 12px; border:2px solid #e2e8f0; border-radius:9px; font-size:13px; outline:none; font-family:inherit; background:#fafbff; transition:border-color .2s; }
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus { border-color:#9B59F5; box-shadow:0 0 0 3px rgba(155,89,245,.1); background:#fff; }
+.form-group textarea { resize:vertical; min-height:72px; }
+.steps-form { display:flex; gap:8px; flex-wrap:wrap; }
+.step-check { display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:500; background:#f8f5ff; border:1.5px solid #e0d6ff; padding:6px 12px; border-radius:20px; transition:all .15s; }
+.step-check:has(input:checked) { background:#ede9fe; border-color:#9B59F5; color:#5B21B6; }
+.step-check input { width:15px; height:15px; cursor:pointer; accent-color:#6C3CE1; }
+
+/* USER MGMT */
+.user-list { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.user-item { display:flex; align-items:center; justify-content:space-between; background:#f8f5ff; border:1.5px solid #e0d6ff; border-radius:10px; padding:10px 14px; }
+.user-avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#6C3CE1,#C05CEA); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; }
+.badge-admin { background:#ede9fe; color:#5B21B6; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+.badge-user  { background:#e0f4ff; color:#0369A1; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+
+/* DELETE */
+.del-overlay { display:none; position:fixed; inset:0; background:rgba(30,20,60,.5); backdrop-filter:blur(4px); z-index:2000; align-items:center; justify-content:center; }
+.del-overlay.open { display:flex; }
+.del-box { background:#fff; border-radius:18px; padding:32px 28px; max-width:340px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.25); animation:popIn .2s cubic-bezier(.34,1.56,.64,1); }
+.del-box .del-icon { font-size:48px; margin-bottom:12px; }
+.del-box h3 { font-size:17px; margin-bottom:8px; color:#1e1b4b; }
+.del-box p { color:#64748b; line-height:1.6; font-size:13px; margin-bottom:20px; }
+.del-actions { display:flex; gap:10px; justify-content:center; }
+
+/* LOADING */
+.loading-screen { position:fixed; inset:0; background:linear-gradient(135deg,#6C3CE1,#9B59F5,#C05CEA); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; color:#fff; }
+.loading-screen .logo { font-size:56px; margin-bottom:16px; animation:bounce 1s infinite; }
+.loading-screen h2 { font-size:18px; font-weight:700; margin-bottom:8px; }
+.loading-screen p { font-size:13px; opacity:.8; }
+.spinner { width:40px; height:40px; border:4px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin 1s linear infinite; margin-top:20px; }
+
+/* TOAST */
+.toast { position:fixed; bottom:28px; right:28px; z-index:9999; background:#1e1b4b; color:#fff; padding:12px 20px; border-radius:12px; font-size:13px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,.2); transform:translateY(80px); opacity:0; transition:all .3s cubic-bezier(.34,1.56,.64,1); display:flex; align-items:center; gap:8px; }
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.green { background:linear-gradient(135deg,#11C98E,#0EA06F); }
+.toast.red   { background:linear-gradient(135deg,#FF5B5B,#E03030); }
+
+.empty-state { text-align:center; padding:60px 20px; color:#aaa; }
+.empty-state .emoji { font-size:52px; margin-bottom:12px; }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:#f0f2ff; }
+::-webkit-scrollbar-thumb { background:#c4b5fd; border-radius:3px; }
+@keyframes popIn { from{transform:scale(.88) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes bounce { 0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)} }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+/* MOBILE */
+@media (max-width: 640px) {
+  body { font-size:13px; }
+  .topbar { height:auto; min-height:56px; flex-direction:column; align-items:flex-start; gap:8px; padding:10px 14px; }
+  .topbar h1 { font-size:15px; }
+  .topbar-right { width:100%; justify-content:flex-start; gap:6px; }
+  .btn { padding:6px 10px; font-size:11.5px; }
+  .user-chip { font-size:11px; padding:4px 9px; }
+
+  .summary-bar { padding:12px 14px 4px; gap:8px; }
+  .card { flex:1 1 calc(50% - 8px); min-width:0; padding:12px 14px; }
+  .card-value { font-size:22px; }
+  .card-label { font-size:10px; }
+  .card-sub { font-size:10px; }
+
+  .toolbar { padding:10px 14px; gap:8px; }
+  .search-wrap, .search-wrap input { width:100%; }
+  .toolbar select { flex:1; min-width:0; }
+
+  .table-wrap { padding:4px 14px 24px; }
+  .table-hint { display:block; font-size:11px; color:#9B9BAE; margin:0 0 6px; }
+  table { font-size:12px; }
+  thead th, tbody td { padding:8px 7px; }
+
+  .modal { width:96vw; }
+  .form-grid { grid-template-columns:1fr; }
+  .login-box { padding:28px 22px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="logo">📋</div>
+  <h2>Customer Follow-up Tracker</h2>
+  <p>กำลังเชื่อมต่อ Firebase...</p>
+  <div class="spinner"></div>
+</div>
+
+<!-- Login -->
+<div id="loginPage" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">📋</div>
+      <h1>Customer Follow-up</h1>
+      <p>Tracker — เข้าสู่ระบบเพื่อใช้งาน</p>
+    </div>
+    <label>ชื่อผู้ใช้ (Username)</label>
+    <input type="text" id="loginUser" placeholder="username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    <label>รหัสผ่าน (Password)</label>
+    <input type="password" id="loginPass" placeholder="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">🔐 เข้าสู่ระบบ</button>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-hint">
+      <p>🔑 บัญชีเริ่มต้น</p>
+      <table>
+        <tr><td>admin</td><td>admin123</td><td><span class="badge-admin">Admin</span></td></tr>
+        <tr><td>pawina</td><td>1234</td><td><span class="badge-user">User</span></td></tr>
+        <tr><td>thana</td><td>1234</td><td><span class="badge-user">User</span></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="appPage">
+  <div class="topbar">
+    <h1>📋 Customer Follow-up Tracker</h1>
+    <div class="topbar-right">
+      <span id="syncStatus" title="สถานะการเชื่อมต่อ"></span>
+      <div class="user-chip" id="userChip"></div>
+      <button class="btn btn-outline" onclick="exportData()">⬇ Export</button>
+      <label class="btn btn-outline" style="cursor:pointer">⬆ Import<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
+      <button class="btn btn-outline" id="userMgmtBtn" style="display:none" onclick="openUserMgmt()">👥 จัดการทีม</button>
+      <button class="btn btn-add" onclick="openModal()">✦ เพิ่มลูกค้า</button>
+      <button class="btn btn-outline" onclick="doLogout()">🚪</button>
+    </div>
+  </div>
+
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="ค้นหา ชื่อ / บริษัท / อีเมล..." oninput="renderTable()">
+    </div>
+    <select id="filterStatus" onchange="onStatusChange()">
+      <option value="">🏷 สถานะทั้งหมด</option>
+      <option>กำลังดำเนินการ</option>
+      <option>รอลูกค้าตอบกลับ</option>
+      <option>ปิดการขาย</option>
+      <option>ยกเลิก</option>
+    </select>
+    <select id="filterOwner" onchange="renderTable()">
+      <option value="">👤 ทีมทั้งหมด</option>
+    </select>
+    <span id="recordCount" style="font-size:12px;color:#9B9BAE;margin-left:4px"></span>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-hint">⟷ เลื่อนซ้าย-ขวาเพื่อดูข้อมูลคอลัมน์อื่น</div>
+    <table>
+      <thead>
+        <tr>
+          <th class="center" style="width:40px">#</th>
+          <th>ชื่อลูกค้า</th><th>บริษัท</th><th>เบอร์โทร</th><th>อีเมล</th>
+          <th>สินค้า / บริการ</th>
+          <th class="center" style="width:108px">Process</th>
+          <th class="center">สถานะ</th>
+          <th>ติดต่อล่าสุด</th><th>Next Action</th><th>ตามวันที่</th>
+          <th>ผู้รับผิดชอบ</th>
+          <th class="center">มูลค่า (฿)</th>
+          <th>หมายเหตุ</th>
+          <th class="center" style="width:68px">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Add/Edit -->
+<div class="overlay" id="overlay" onclick="closeOnBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">✦ เพิ่มลูกค้าใหม่</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="section-title">👤 ข้อมูลลูกค้า</div>
+      <div class="form-grid">
+        <div class="form-group"><label>ชื่อลูกค้า *</label><input type="text" id="f_name" placeholder="เช่น สมชาย ใจดี"></div>
+        <div class="form-group"><label>บริษัท</label><input type="text" id="f_company" placeholder="เช่น ABC Co., Ltd."></div>
+        <div class="form-group"><label>เบอร์โทร</label><input type="text" id="f_phone" placeholder="เช่น 081-234-5678"></div>
+        <div class="form-group"><label>อีเมล</label><input type="email" id="f_email" placeholder="example@email.com"></div>
+        <div class="form-group form-full"><label>สินค้า / บริการที่สนใจ</label><input type="text" id="f_product" placeholder="เช่น ระบบ ERP, CCTV, Solar Panel"></div>
+      </div>
+      <div class="section-title" style="margin-top:20px">🔄 Process & สถานะ</div>
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label>ขั้นตอนที่ผ่านแล้ว</label>
+          <div class="steps-form">
+            <label class="step-check"><input type="checkbox" id="s1"> 1️⃣ ติดต่อลูกค้า</label>
+            <label class="step-check"><input type="checkbox" id="s2"> 2️⃣ เสนอราคา</label>
+            <label class="step-check"><input type="checkbox" id="s3"> 3️⃣ นัดหมายเข้าพบ</label>
+            <label class="step-check"><input type="checkbox" id="s4"> 4️⃣ ได้รับ PO</label>
+          </div>
+        </div>
+        <div class="form-group"><label>สถานะ</label>
+          <select id="f_status"><option>กำลังดำเนินการ</option><option>รอลูกค้าตอบกลับ</option><option>ปิดการขาย</option><option>ยกเลิก</option></select>
+        </div>
+        <div class="form-group"><label>ผู้รับผิดชอบ</label><input type="text" id="f_owner"></div>
+        <div class="form-group"><label>วันที่ติดต่อล่าสุด</label><input type="date" id="f_lastContact"></div>
+        <div class="form-group"><label>มูลค่า (บาท)</label><input type="number" id="f_value" min="0"></div>
+      </div>
+      <div class="section-title" style="margin-top:20px">⚡ Next Action</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Next Action</label><input type="text" id="f_nextAction" placeholder="เช่น ส่งใบเสนอราคา"></div>
+        <div class="form-group"><label>วันที่ต้องตาม</label><input type="date" id="f_followupDate"></div>
+        <div class="form-group form-full"><label>หมายเหตุ</label><textarea id="f_note" placeholder="บันทึกรายละเอียดการคุย..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-save" id="saveBtn" onclick="saveEntry()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Management -->
+<div class="overlay" id="userOverlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h2>👥 จัดการทีม</h2>
+      <button class="modal-close" onclick="document.getElementById('userOverlay').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="user-list" id="userList"></div>
+      <div class="section-title">➕ เพิ่มสมาชิกใหม่</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Username</label><input type="text" id="nu_user" placeholder="username"></div>
+        <div class="form-group"><label>Password</label><input type="password" id="nu_pass" placeholder="password"></div>
+        <div class="form-group"><label>ชื่อแสดง</label><input type="text" id="nu_display" placeholder="เช่น สมชาย"></div>
+        <div class="form-group"><label>Role</label><select id="nu_role"><option value="user">User</option><option value="admin">Admin</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="document.getElementById('userOverlay').classList.remove('open')">ปิด</button>
+      <button class="btn btn-save" onclick="addUser()">➕ เพิ่ม</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm -->
+<div class="del-overlay" id="delOverlay">
+  <div class="del-box">
+    <div class="del-icon">🗑️</div>
+    <h3>ลบรายการนี้?</h3>
+    <p>ต้องการลบข้อมูลของ<br><strong id="delName"></strong></p>
+    <div class="del-actions">
+      <button class="btn btn-cancel" onclick="closeDelModal()">ยกเลิก</button>
+      <button class="btn btn-del" onclick="confirmDelete()">🗑 ลบเลย</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCzKnZS-8DEWxFSNR56eYTeZMY0GIeDZjI",
+  authDomain: "customer-followup-455f0.firebaseapp.com",
+  databaseURL: "https://customer-followup-455f0-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "customer-followup-455f0",
+  storageBucket: "customer-followup-455f0.firebasestorage.app",
+  messagingSenderId: "96869034075",
+  appId: "1:96869034075:web:be1f9170d9c589baf6f77e"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ============================================================
+// DEFAULT SEED DATA
+// ============================================================
+const DEFAULT_USERS = {
+  admin:  { display:'Admin',  password:'admin123', role:'admin' },
+  pawina: { display:'ปวีณา', password:'1234',     role:'user'  },
+  thana:  { display:'ธนา',   password:'1234',     role:'user'  },
+};
+
+const DEFAULT_ENTRIES = [
+  { name:"สมชาย ใจดี",   company:"ABC Co., Ltd.", phone:"081-234-5678", email:"somchai@abc.com", product:"ระบบ ERP",     steps:[true,false,false,false], status:"กำลังดำเนินการ",  lastContact:"2026-06-01", nextAction:"ส่งใบเสนอราคา", followupDate:"2026-06-07", owner:"ปวีณา", value:150000, note:"ลูกค้าสนใจ รอใบเสนอราคา", addedBy:"admin" },
+  { name:"สุดา มีสุข",    company:"XYZ Corp.",     phone:"089-765-4321", email:"suda@xyz.com",    product:"CCTV ติดตั้ง", steps:[true,true,false,false],  status:"รอลูกค้าตอบกลับ", lastContact:"2026-05-28", nextAction:"โทรติดตาม",       followupDate:"2026-06-05", owner:"ธนา",   value:80000,  note:"เสนอราคาแล้ว รอ approve",  addedBy:"admin" },
+  { name:"วิชัย สว่าง",   company:"DEF Ltd.",      phone:"062-111-2222", email:"wichai@def.com",  product:"Solar Panel",  steps:[true,true,true,false],   status:"รอลูกค้าตอบกลับ", lastContact:"2026-06-03", nextAction:"ติดตาม PO",       followupDate:"2026-06-08", owner:"ปวีณา", value:320000, note:"เข้าพบแล้ว รอ PO",         addedBy:"pawina" },
+  { name:"มาลี บุปผา",    company:"GHI Trading",   phone:"095-333-4444", email:"malee@ghi.com",   product:"Server Rack",  steps:[true,true,true,true],    status:"ปิดการขาย",        lastContact:"2026-05-20", nextAction:"-",               followupDate:"",           owner:"ธนา",   value:210000, note:"ปิดงานแล้ว รอส่งของ",     addedBy:"thana" },
+  { name:"ประยุทธ์ เก่ง", company:"JKL Group",     phone:"087-555-6666", email:"prayut@jkl.com",  product:"UPS System",   steps:[true,false,false,false], status:"ยกเลิก",           lastContact:"2026-05-15", nextAction:"-",               followupDate:"",           owner:"ปวีณา", value:0,      note:"ลูกค้าเลือกคู่แข่ง",       addedBy:"pawina" },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let currentUser = null;
+let entries = [];   // live array from Firebase
+let editingKey = null;
+let deleteKey  = null;
+let activeFilter = '';
+let usersCache = {};
+
+// ============================================================
+// INIT
+// ============================================================
+async function initApp() {
+  // Monitor connection state
+  db.ref('.info/connected').on('value', snap => {
+    const el = document.getElementById('syncStatus');
+    if (snap.val()) {
+      el.innerHTML = '<span class="sync-dot"></span> Live';
+      el.style.cssText = 'font-size:11px;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:5px';
+    } else {
+      el.innerHTML = '<span class="sync-dot off"></span> Offline';
+      el.style.cssText = 'font-size:11px;color:rgba(255,200,200,.9);display:flex;align-items:center;gap:5px';
+    }
+  });
+
+  // Seed users if not exist
+  const usersSnap = await db.ref('/users').once('value');
+  if (!usersSnap.exists()) {
+    await db.ref('/users').set(DEFAULT_USERS);
+  }
+  usersCache = (await db.ref('/users').once('value')).val() || {};
+
+  // Seed entries if not exist
+  const entriesSnap = await db.ref('/entries').once('value');
+  if (!entriesSnap.exists()) {
+    for (const e of DEFAULT_ENTRIES) {
+      await db.ref('/entries').push({ ...e, createdAt: new Date().toISOString() });
+    }
+  }
+
+  // Hide loading, show login
+  document.getElementById('loadingScreen').style.display = 'none';
+
+  // Resume session
+  const saved = sessionStorage.getItem('cft_user');
+  if (saved) {
+    try { currentUser = JSON.parse(saved); showApp(); return; } catch(e) {}
+  }
+  document.getElementById('loginPage').style.display = 'flex';
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+
+  // Refresh users from Firebase
+  usersCache = (await db.ref('/users').once('value')).val() || {};
+  const user = usersCache[u];
+
+  if (!user || user.password !== p) {
+    document.getElementById('loginError').textContent = '❌ Username หรือ Password ไม่ถูกต้อง';
+    btn.disabled = false; btn.textContent = '🔐 เข้าสู่ระบบ';
+    return;
+  }
+  currentUser = { username: u, ...user };
+  sessionStorage.setItem('cft_user', JSON.stringify(currentUser));
+  document.getElementById('loginError').textContent = '';
+  btn.disabled = false; btn.textContent = '🔐 เข้าสู่ระบบ';
+  showApp();
+}
+
+function doLogout() {
+  sessionStorage.removeItem('cft_user');
+  currentUser = null;
+  if (window._entriesListener) { db.ref('/entries').off(); }
+  entries = [];
+  document.getElementById('appPage').style.display = 'none';
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+}
+
+function showApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('appPage').style.display = 'block';
+  document.getElementById('userChip').innerHTML = `👤 ${currentUser.display}`;
+  document.getElementById('userMgmtBtn').style.display = currentUser.role === 'admin' ? 'flex' : 'none';
+  startListening();
+  showToast(`ยินดีต้อนรับ ${currentUser.display} 👋`, 'green');
+}
+
+// ============================================================
+// REAL-TIME LISTENER
+// ============================================================
+function startListening() {
+  db.ref('/entries').on('value', snap => {
+    entries = [];
+    snap.forEach(child => {
+      entries.push({ _key: child.key, ...child.val() });
+    });
+    entries.sort((a,b) => (a.createdAt||'') < (b.createdAt||'') ? -1 : 1);
+    renderAll();
+  });
+  window._entriesListener = true;
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const STATUS_BADGE = { "กำลังดำเนินการ":"badge-wip","รอลูกค้าตอบกลับ":"badge-wait","ปิดการขาย":"badge-closed","ยกเลิก":"badge-cancel" };
+const STATUS_DOT   = { "กำลังดำเนินการ":"🟠","รอลูกค้าตอบกลับ":"🔵","ปิดการขาย":"🟢","ยกเลิก":"⚫" };
+const ROW_CLS      = { "กำลังดำเนินการ":"row-wip","รอลูกค้าตอบกลับ":"row-wait","ปิดการขาย":"row-closed","ยกเลิก":"row-cancel" };
+const isOverdue = e => e.followupDate && e.status !== "ปิดการขาย" && e.status !== "ยกเลิก" && new Date(e.followupDate) < new Date(new Date().toDateString());
+const fmtDate = d => { if(!d)return'-'; const[y,m,day]=d.split('-'); return`${day}/${m}/${y}`; };
+const fmtNum  = n => n ? Number(n).toLocaleString('th-TH') : '-';
+
+// ============================================================
+// SUMMARY + TABLE
+// ============================================================
+function renderSummary() {
+  let wip=0,wait=0,closed=0,cancel=0,overdue=0,closedVal=0;
+  entries.forEach(e=>{
+    if(e.status==="กำลังดำเนินการ") wip++;
+    if(e.status==="รอลูกค้าตอบกลับ") wait++;
+    if(e.status==="ปิดการขาย"){ closed++; closedVal+=(+e.value||0); }
+    if(e.status==="ยกเลิก") cancel++;
+    if(isOverdue(e)) overdue++;
+  });
+  const cards=[
+    {key:'',              cls:'card-all',    icon:'📋',label:'ทั้งหมด',        val:entries.length, sub:'รายการ'},
+    {key:'กำลังดำเนินการ',cls:'card-wip',   icon:'🔥',label:'กำลังดำเนินการ',val:wip,            sub:'รายการ'},
+    {key:'รอลูกค้าตอบกลับ',cls:'card-wait', icon:'⏳',label:'รอตอบกลับ',     val:wait,           sub:'รายการ'},
+    {key:'ปิดการขาย',     cls:'card-closed', icon:'✅',label:'ปิดการขาย',     val:closed,         sub:'฿'+fmtNum(closedVal)},
+    {key:'ยกเลิก',        cls:'card-cancel', icon:'❌',label:'ยกเลิก',        val:cancel,         sub:'รายการ'},
+    {key:'__overdue',     cls:'card-overdue',icon:'⚠️',label:'เกินกำหนด',     val:overdue,        sub:'ต้องตามด่วน'},
+  ];
+  document.getElementById('summaryBar').innerHTML = cards.map(c=>`
+    <div class="card ${c.cls}${activeFilter===c.key?' active':''}" onclick="filterByCard('${c.key}')">
+      <div class="card-label">${c.icon} ${c.label}</div>
+      <div class="card-value">${c.val}</div>
+      <div class="card-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+function filterByCard(key) {
+  activeFilter = key;
+  document.getElementById('filterStatus').value = key==='__overdue' ? '' : key;
+  renderTable(); renderSummary();
+}
+function onStatusChange() {
+  activeFilter = document.getElementById('filterStatus').value;
+  renderSummary(); renderTable();
+}
+
+function updateOwnerFilter() {
+  const owners = [...new Set(entries.map(e=>e.owner).filter(Boolean))].sort();
+  const sel = document.getElementById('filterOwner'), cur = sel.value;
+  sel.innerHTML = '<option value="">👤 ทีมทั้งหมด</option>' + owners.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('');
+}
+
+function renderTable() {
+  const q    = document.getElementById('searchInput').value.toLowerCase();
+  const fSt  = document.getElementById('filterStatus').value;
+  const fOwn = document.getElementById('filterOwner').value;
+  const filtered = entries.filter(e=>{
+    if(q && !`${e.name} ${e.company} ${e.email} ${e.phone} ${e.product}`.toLowerCase().includes(q)) return false;
+    if(activeFilter==='__overdue' && !isOverdue(e)) return false;
+    else if(fSt && activeFilter!=='__overdue' && e.status!==fSt) return false;
+    if(fOwn && e.owner!==fOwn) return false;
+    return true;
+  });
+  document.getElementById('recordCount').textContent = `แสดง ${filtered.length} / ${entries.length} รายการ`;
+  const body = document.getElementById('tableBody');
+  if (!filtered.length) {
+    body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="emoji">📭</div><p>ไม่พบข้อมูลที่ตรงกับเงื่อนไข</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.map((e,i)=>{
+    const od = isOverdue(e);
+    const rowCls = od ? 'row-overdue' : (ROW_CLS[e.status]||'');
+    const stepsHtml = (e.steps||[false,false,false,false]).map((done,j)=>
+      `<div class="step ${done?'done':'todo'}">${done?'✓':j+1}</div>`).join('');
+    const followHtml = e.followupDate ? (od ? `<span class="overdue-tag">⚠ ${fmtDate(e.followupDate)}</span>` : `📅 ${fmtDate(e.followupDate)}`) : '-';
+    const canEdit = currentUser.role==='admin' || e.addedBy===currentUser.username;
+    return `<tr class="${rowCls}">
+      <td class="center" style="color:#bbb;font-size:12px;font-weight:600">${i+1}</td>
+      <td><strong style="color:#1e1b4b">${e.name||'-'}</strong></td>
+      <td style="color:#4B5563">${e.company||'-'}</td>
+      <td>${e.phone?`<a href="tel:${e.phone}" style="color:#7C3AED;text-decoration:none;font-weight:600">${e.phone}</a>`:'-'}</td>
+      <td>${e.email?`<a href="mailto:${e.email}" style="color:#7C3AED;text-decoration:none;font-size:12px">${e.email}</a>`:'-'}</td>
+      <td style="font-size:12px;color:#4B5563">${e.product||'-'}</td>
+      <td class="center"><div class="steps">${stepsHtml}</div></td>
+      <td class="center"><span class="badge ${STATUS_BADGE[e.status]||''}">${STATUS_DOT[e.status]||''} ${e.status}</span></td>
+      <td style="font-size:12px;color:#6B7280">${fmtDate(e.lastContact)}</td>
+      <td style="font-size:12px">${e.nextAction||'-'}</td>
+      <td style="font-size:12px">${followHtml}</td>
+      <td><span style="background:#EDE9FE;color:#5B21B6;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700">${e.owner||'-'}</span></td>
+      <td class="center" style="font-size:12px;font-weight:600;color:#047857">${fmtNum(e.value)}</td>
+      <td style="font-size:12px;color:#6B7280;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(e.note||'').replace(/"/g,'')}">${e.note||'-'}</td>
+      <td class="center">
+        ${canEdit?`<button class="act-btn act-edit" onclick="openModal('${e._key}')" title="แก้ไข">✏️</button>`:'<button class="act-btn" style="background:#f8f8f8;color:#ccc;cursor:default">🔒</button>'}
+        ${currentUser.role==='admin'?`<button class="act-btn act-del" onclick="openDelModal('${e._key}','${(e.name||'').replace(/'/g,"\\'")}','${(e.company||'').replace(/'/g,"\\'")}')">🗑</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAll() { renderSummary(); updateOwnerFilter(); renderTable(); }
+
+// ============================================================
+// MODAL ENTRY
+// ============================================================
+function openModal(key=null) {
+  editingKey = key;
+  document.getElementById('modalTitle').textContent = key ? '✏️ แก้ไขข้อมูลลูกค้า' : '✦ เพิ่มลูกค้าใหม่';
+  if (key) {
+    const e = entries.find(x=>x._key===key);
+    document.getElementById('f_name').value        = e.name||'';
+    document.getElementById('f_company').value     = e.company||'';
+    document.getElementById('f_phone').value       = e.phone||'';
+    document.getElementById('f_email').value       = e.email||'';
+    document.getElementById('f_product').value     = e.product||'';
+    document.getElementById('f_status').value      = e.status||'กำลังดำเนินการ';
+    document.getElementById('f_owner').value       = e.owner||'';
+    document.getElementById('f_lastContact').value = e.lastContact||'';
+    document.getElementById('f_value').value       = e.value||'';
+    document.getElementById('f_nextAction').value  = e.nextAction||'';
+    document.getElementById('f_followupDate').value= e.followupDate||'';
+    document.getElementById('f_note').value        = e.note||'';
+    (e.steps||[false,false,false,false]).forEach((v,i)=>document.getElementById(`s${i+1}`).checked=v);
+  } else {
+    ['f_name','f_company','f_phone','f_email','f_product','f_value','f_nextAction','f_note'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f_status').value       = 'กำลังดำเนินการ';
+    document.getElementById('f_owner').value        = currentUser.display;
+    document.getElementById('f_lastContact').value  = new Date().toISOString().slice(0,10);
+    document.getElementById('f_followupDate').value = '';
+    [1,2,3,4].forEach(i=>document.getElementById(`s${i}`).checked=false);
+  }
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+function closeOnBg(e) { if(e.target===document.getElementById('overlay')) closeModal(); }
+
+async function saveEntry() {
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) { alert('กรุณากรอกชื่อลูกค้า'); return; }
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  const data = {
+    name, company:document.getElementById('f_company').value.trim(),
+    phone:document.getElementById('f_phone').value.trim(),
+    email:document.getElementById('f_email').value.trim(),
+    product:document.getElementById('f_product').value.trim(),
+    steps:[1,2,3,4].map(i=>document.getElementById(`s${i}`).checked),
+    status:document.getElementById('f_status').value,
+    owner:document.getElementById('f_owner').value.trim(),
+    lastContact:document.getElementById('f_lastContact').value,
+    value:Number(document.getElementById('f_value').value)||0,
+    nextAction:document.getElementById('f_nextAction').value.trim(),
+    followupDate:document.getElementById('f_followupDate').value,
+    note:document.getElementById('f_note').value.trim(),
+    updatedBy:currentUser.username, updatedAt:new Date().toISOString(),
+  };
+  try {
+    if (editingKey) {
+      await db.ref(`/entries/${editingKey}`).update(data);
+      showToast('✅ บันทึกการแก้ไขแล้ว', 'green');
+    } else {
+      await db.ref('/entries').push({ ...data, addedBy:currentUser.username, createdAt:new Date().toISOString() });
+      showToast('✅ เพิ่มลูกค้าใหม่แล้ว', 'green');
+    }
+    closeModal();
+  } catch(err) { showToast('❌ บันทึกไม่สำเร็จ: '+err.message, 'red'); }
+  btn.disabled = false; btn.textContent = '💾 บันทึก';
+}
+
+// ============================================================
+// DELETE
+// ============================================================
+function openDelModal(key, name, company) {
+  deleteKey = key;
+  document.getElementById('delName').textContent = `${name} (${company||'-'})`;
+  document.getElementById('delOverlay').classList.add('open');
+}
+function closeDelModal() { document.getElementById('delOverlay').classList.remove('open'); deleteKey=null; }
+async function confirmDelete() {
+  try {
+    await db.ref(`/entries/${deleteKey}`).remove();
+    showToast('🗑 ลบรายการแล้ว', 'red');
+  } catch(err) { showToast('❌ ลบไม่สำเร็จ', 'red'); }
+  closeDelModal();
+}
+
+// ============================================================
+// USER MANAGEMENT
+// ============================================================
+async function openUserMgmt() {
+  usersCache = (await db.ref('/users').once('value')).val() || {};
+  renderUserList();
+  document.getElementById('userOverlay').classList.add('open');
+}
+function renderUserList() {
+  document.getElementById('userList').innerHTML = Object.entries(usersCache).map(([u,v])=>`
+    <div class="user-item">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="user-avatar">${(v.display||u).charAt(0).toUpperCase()}</div>
+        <div>
+          <div style="font-weight:700;font-size:13px;color:#1e1b4b">${v.display} <span class="${v.role==='admin'?'badge-admin':'badge-user'}">${v.role}</span></div>
+          <div style="font-size:11px;color:#9B9BAE">@${u}</div>
+        </div>
+      </div>
+      ${u!=='admin'?`<button class="act-btn act-del" onclick="removeUser('${u}')" title="ลบ">🗑</button>`:'<span style="font-size:11px;color:#bbb">ลบไม่ได้</span>'}
+    </div>`).join('');
+}
+async function removeUser(username) {
+  if (!confirm(`ลบผู้ใช้ ${username} ใช่ไหม?`)) return;
+  await db.ref(`/users/${username}`).remove();
+  usersCache = (await db.ref('/users').once('value')).val() || {};
+  renderUserList();
+  showToast('ลบผู้ใช้แล้ว', 'red');
+}
+async function addUser() {
+  const u=document.getElementById('nu_user').value.trim();
+  const p=document.getElementById('nu_pass').value.trim();
+  const d=document.getElementById('nu_display').value.trim();
+  const r=document.getElementById('nu_role').value;
+  if(!u||!p||!d) { alert('กรุณากรอกข้อมูลให้ครบ'); return; }
+  if(usersCache[u]) { alert('Username นี้มีอยู่แล้ว'); return; }
+  await db.ref(`/users/${u}`).set({ display:d, password:p, role:r });
+  usersCache = (await db.ref('/users').once('value')).val() || {};
+  renderUserList();
+  ['nu_user','nu_pass','nu_display'].forEach(id=>document.getElementById(id).value='');
+  showToast(`✅ เพิ่ม ${d} แล้ว`, 'green');
+}
+
+// ============================================================
+// EXPORT / IMPORT
+// ============================================================
+function exportData() {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(entries.map(({_key,...e})=>e),null,2)],{type:'application/json'}));
+  a.download=`followup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); showToast('⬇ Export สำเร็จ','green');
+}
+async function importData(ev) {
+  const file=ev.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=async e=>{
+    try {
+      const arr=JSON.parse(e.target.result);
+      if(!Array.isArray(arr)) throw 0;
+      for(const item of arr) {
+        const {_key,...data}=item;
+        await db.ref('/entries').push({...data, importedAt:new Date().toISOString()});
+      }
+      showToast(`✅ Import สำเร็จ ${arr.length} รายการ`,'green');
+    } catch { showToast('❌ ไฟล์ไม่ถูกต้อง','red'); }
+  };
+  r.readAsText(file); ev.target.value='';
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer;
+function showToast(msg,type='') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast '+(type||'');
+  setTimeout(()=>t.classList.add('show'),10);
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ============================================================
+// START
+// ============================================================
+initApp();
+</script>
+</body>
+</html>
